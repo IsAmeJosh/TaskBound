@@ -1,1 +1,11 @@
-
+// Main.java (for testing only)
+public class Main {
+    public static void main(String[] args) {
+        Task t = new Task();
+        t.title = "Math HW";
+        t.subject = "Mathematics";
+        t.dueDate = "2026-06-15";
+        t.status = "INCOMPLETE";
+        System.out.println(t.title + " | " + t.subject + " | " + t.dueDate + " | " + t.status);
+    }
+}
