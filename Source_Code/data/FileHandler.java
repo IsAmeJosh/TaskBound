@@ -1,6 +1,7 @@
 package data;
 
 import core.Task;
+import core.Status;
 import java.io.*;
 import java.util.ArrayList;
 
@@ -9,7 +10,7 @@ public class FileHandler {
     public static void saveTasks(ArrayList<Task> tasks) throws IOException {
         FileWriter fw = new FileWriter("tasks.csv");
         for (Task t : tasks) {
-            fw.write(t.title + "," + t.subject + "," + t.dueDate + "," + t.status + "\n");
+            fw.write(t.title + "," + t.subject + "," + t.dueDate + "," + t.dueTime + "," + t.status + "\n");
         }
         fw.close();
     }
@@ -24,7 +25,8 @@ public class FileHandler {
             t.title = parts[0];
             t.subject = parts[1];
             t.dueDate = parts[2];
-            t.status = parts[3];
+            t.dueTime = parts[3];
+            t.status = Status.valueOf(parts[4]);
             tasks.add(t);
         }
         br.close();
