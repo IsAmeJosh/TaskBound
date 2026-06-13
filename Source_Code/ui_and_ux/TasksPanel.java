@@ -19,6 +19,7 @@ public class TasksPanel {
     static JComboBox<String> subjectFilterBox;
     static JComboBox<String> statusFilterBox;
 
+    // Convert any time string to 12hr display format
     static String to12Hour(String time) {
         if (time == null) return "";
         String s = time.trim();
@@ -54,6 +55,7 @@ public class TasksPanel {
         return s;
     }
 
+    // Normalize all task times to 12hr on load
     static void normalizeAllTimes(TaskManager tm) {
         if (tm == null || tm.tasks == null) return;
         for (Task t : tm.tasks) {
@@ -64,13 +66,16 @@ public class TasksPanel {
     public static JPanel build(JFrame frame, TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
         JPanel panel = new JPanel(new BorderLayout());
 
+        // Filter panel
         JPanel filterPanel = new JPanel();
         filterPanel.add(new JLabel("Subject:"));
         subjectFilterBox = new JComboBox<>();
+        subjectFilterBox.setFocusable(false);
         subjectFilterBox.setPreferredSize(new Dimension(150, 26));
         filterPanel.add(subjectFilterBox);
         filterPanel.add(new JLabel("Due:"));
-        statusFilterBox = new JComboBox<>(new String[] {"All", "Overdue", "Due Today", "Upcoming"});
+        statusFilterBox = new JComboBox<>(new String[]{"All", "Overdue", "Due Today", "Upcoming"});
+        statusFilterBox.setFocusable(false);
         statusFilterBox.setPreferredSize(new Dimension(120, 26));
         filterPanel.add(statusFilterBox);
         panel.add(filterPanel, BorderLayout.NORTH);
@@ -78,6 +83,7 @@ public class TasksPanel {
         subjectFilterBox.addActionListener(e -> refresh(tm, tableModel, fakeTodayRef[0]));
         statusFilterBox.addActionListener(e -> refresh(tm, tableModel, fakeTodayRef[0]));
 
+        // Table
         JTable table = new JTable(tableModel) {
             @Override
             public Component prepareRenderer(javax.swing.table.TableCellRenderer r, int row, int col) {
@@ -96,8 +102,10 @@ public class TasksPanel {
                 return c;
             }
         };
+
         table.setRowHeight(28);
         table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.setFocusable(false);
         table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
         table.getTableHeader().setReorderingAllowed(false);
         table.getTableHeader().setResizingAllowed(false);
@@ -107,14 +115,26 @@ public class TasksPanel {
         TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
         refresh(tm, tableModel, fakeTodayRef[0]);
 
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        // Table with padding from edges
+        JScrollPane scrollPane = new JScrollPane(table);
+        JPanel tableWrapper = new JPanel(new BorderLayout());
+        tableWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        tableWrapper.add(scrollPane, BorderLayout.CENTER);
+        panel.add(tableWrapper, BorderLayout.CENTER);
 
+        // Button panel
         JPanel buttonPanel = new JPanel();
         JButton syncBtn = new JButton("Sync LMS");
         JButton addBtn = new JButton("Add Task");
         JButton deleteBtn = new JButton("Delete Task");
         JButton statusBtn = new JButton("Change Status");
         JButton saveBtn = new JButton("Save");
+
+        syncBtn.setFocusable(false);
+        addBtn.setFocusable(false);
+        deleteBtn.setFocusable(false);
+        statusBtn.setFocusable(false);
+        saveBtn.setFocusable(false);
 
         buttonPanel.add(syncBtn);
         buttonPanel.add(addBtn);
@@ -141,7 +161,6 @@ public class TasksPanel {
             String[] months = {"01","02","03","04","05","06","07","08","09","10","11","12"};
             String[] days = new String[31];
             for (int i = 0; i < 31; i++) days[i] = String.format("%02d", i + 1);
-
             String[] hours12 = {"12","01","02","03","04","05","06","07","08","09","10","11"};
             String[] minutes = {"00","15","30","45"};
             String[] ampm = {"AM","PM"};
@@ -185,7 +204,6 @@ public class TasksPanel {
                 t.dueTime = to12Hour(dueTime);
                 t.status = Status.INCOMPLETE;
                 tm.addTask(t);
-                // Re-check missed status then sort so the new task lands in the right position
                 Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 Scheduler.sortByDueDate(tm.tasks);
                 TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
@@ -199,7 +217,7 @@ public class TasksPanel {
                 JOptionPane.showMessageDialog(frame, "Select a task to delete.");
                 return;
             }
-            // Match by tableModel data to avoid index mismatch
+            // Match by title+subject+date to avoid index mismatch
             ArrayList<Task> toDelete = new ArrayList<>();
             for (int i : rows) {
                 String rowTitle   = String.valueOf(tableModel.getValueAt(i, 0));
@@ -223,9 +241,7 @@ public class TasksPanel {
                 JOptionPane.showMessageDialog(frame, "Select a task first.");
                 return;
             }
-            // Read the actual title+subject+dueDate shown in this table row,
-            // then find the matching Task in tm.tasks directly — this avoids
-            // index mismatch between the visual table order and the list order.
+            // Match by title+subject+date to avoid index mismatch after sort
             String rowTitle   = String.valueOf(tableModel.getValueAt(row, 0));
             String rowSubject = String.valueOf(tableModel.getValueAt(row, 1));
             String rowDate    = String.valueOf(tableModel.getValueAt(row, 2));
@@ -300,6 +316,7 @@ public class TasksPanel {
                     minuteBox.setSelectedItem(mmStr);
                     ampmBox.setSelectedItem(period);
                 } catch (Exception ex) {
+                    // leave defaults if parse fails
                 }
             }
 
@@ -323,10 +340,10 @@ public class TasksPanel {
                 sel.status = (Status) statusBox.getSelectedItem();
                 sel.dueDate = yearBox.getSelectedItem() + "-" + monthBox.getSelectedItem() + "-" + dayBox.getSelectedItem();
                 sel.dueTime = to12Hour(hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem());
-
-                // *** THE FIX: re-check missed and re-sort the master list before refreshing ***
                 Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 Scheduler.sortByDueDate(tm.tasks);
+                // Clear selection before refresh to prevent stale row index
+                table.clearSelection();
                 refresh(tm, tableModel, fakeTodayRef[0]);
             }
         });
@@ -348,7 +365,7 @@ public class TasksPanel {
         tableModel.setRowCount(0);
         ArrayList<Task> filtered = TaskFilter.getFilteredTasks(tm.tasks, subjectFilterBox, statusFilterBox, fakeToday);
         for (Task t : filtered) {
-            tableModel.addRow(new Object[] {
+            tableModel.addRow(new Object[]{
                 t.title,
                 t.subject,
                 t.dueDate,
