@@ -6,43 +6,33 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import logic.Scheduler;
 import logic.TaskManager;
+import logic.TaskSorter;
 
-// Entry point for the whole app's UI. Sets up the main window, loads any
-// saved tasks, and arranges the three tabs: Tasks, Calendar, and Dev Console.
+/* Entry point for the app's UI. Sets up the main window and
+   assembles the three tabs: Tasks, Calendar, and Dev Console. */
 public class TaskManagerGUI {
 
     public static void main(String[] args) throws Exception {
-        // This turns off the dotted focus rectangle on every button in the
-        // app, including the OK/Cancel buttons inside JOptionPane popups
-        // (Add Task, Change Status, message boxes, etc.) which we can't
-        // reach directly with setFocusable since Swing builds those buttons
-        // internally. Must be set before any UI components are created.
+        /* Removes the dotted focus rectangle from every button globally,
+           including OK and Cancel buttons inside JOptionPane popups that
+           cannot be reached directly with setFocusable.
+           Must be set before any UI components are created. */
         UIManager.put("Button.focusPainted", false);
-        // The Windows Look and Feel ignores Button.focusPainted for the
-        // little focus rectangle drawn around a button's text. This extra
-        // property targets that Windows-specific behavior directly.
         UIManager.put("Button.focus", new Color(0, 0, 0, 0));
 
         TaskManager tm = new TaskManager();
 
-        // fakeTodayRef holds "today" as far as the app is concerned. It's an
-        // array (not a plain LocalDate) so the Dev Console can change it and
-        // have every other panel see the update, since Java lambdas can't
-        // reassign a captured local variable directly.
+        /* fakeTodayRef is an array so the Dev Console can reassign it
+           inside a lambda. Java lambdas cannot reassign a plain local
+           variable, but they can mutate an array element. */
         LocalDate[] fakeTodayRef = {LocalDate.now()};
 
-        // The app always starts with an empty task list, even if tasks.csv
-        // exists on disk. Users load saved tasks explicitly via the "Load"
-        // button on the Tasks tab.
-
-        // Make sure any overdue tasks are flagged as MISSED, and sort the
-        // list so the most relevant tasks show up first.
         Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
-        Scheduler.sortByDueDate(tm.tasks);
+        TaskSorter.sort(tm.tasks);
 
-        // This table model is shared between the Tasks tab and the Dev
-        // Console, since the Dev Console needs to trigger a table refresh
-        // when the fake date changes.
+        /* tableModel is shared between the Tasks tab and Dev Console
+           so the Dev Console can trigger a table refresh when the
+           fake date changes. */
         String[] columns = {"Task", "Subject", "Due Date", "Due Time", "Status", "Time Left"};
         DefaultTableModel tableModel = new DefaultTableModel(columns, 0) {
             public boolean isCellEditable(int row, int column) {
@@ -61,8 +51,8 @@ public class TaskManagerGUI {
         tabs.addTab("Calendar", CalendarPanel.build(tm.tasks));
         tabs.addTab("Dev Console", DevConsolePanel.build(frame, tm, tableModel, fakeTodayRef));
 
-        // Re-render the calendar whenever the user switches to that tab, so
-        // it reflects any task changes made while on the other tabs.
+        /* Re-render the calendar when the user switches to that tab
+           so it reflects any task changes made on the Tasks tab. */
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 1) {
                 CalendarPanel.render(tm.tasks);

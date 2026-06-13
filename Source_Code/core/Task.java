@@ -1,8 +1,9 @@
 package core;
 
-// A single task/assignment. dueDate is stored as "YYYY-MM-DD" and dueTime is
-// stored/displayed as "hh:mm AM/PM" (see TimeDisplay and FileHandler for the
-// conversion logic between formats).
+/* A single task or assignment entry in the system.
+   dueDate is stored as YYYY-MM-DD.
+   dueTime is stored and displayed as hh:mm AM/PM.
+   See TimeFormatter and FileHandler for conversion logic. */
 public class Task {
     public String title;
     public String subject;

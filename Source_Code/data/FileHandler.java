@@ -4,26 +4,28 @@ import core.Status;
 import core.Task;
 import java.io.*;
 import java.util.ArrayList;
+import logic.TimeConverter;
 
-// Handles saving and loading tasks to/from a CSV file on disk. We always
-// store times in 24hr format in the file (since it's unambiguous and easy
-// to parse back), but display them in 12hr format in the UI.
+/* Handles saving and loading tasks to and from a CSV file on disk.
+   Times are always stored in 24hr format in the file since it is
+   unambiguous and easy to parse back. The UI always displays 12hr. */
 public class FileHandler {
 
-    // Writes every task out as one CSV line: title, subject, due date,
-    // due time (in 24hr format), and status, to the given file.
+    /* Writes every task out as one CSV line per task:
+       title, subject, due date, due time in 24hr, and status.
+       Saves to whichever File the user picked via the file chooser. */
     public static void saveTasks(ArrayList<Task> tasks, File file) throws IOException {
         FileWriter fw = new FileWriter(file);
         for (Task t : tasks) {
-            String time24 = to24Hour(t.dueTime);
+            String time24 = TimeConverter.to24Hour(t.dueTime);
             fw.write(t.title + "," + t.subject + "," + t.dueDate + "," + time24 + "," + t.status + "\n");
         }
         fw.close();
     }
 
-    // Reads tasks back from the given CSV file. Lines with fewer than 5
-    // fields are skipped (likely leftover blank/corrupt lines) rather than
-    // crashing.
+    /* Reads tasks back from the given CSV file.
+       Lines with fewer than 5 fields are skipped to handle
+       blank or corrupt lines without crashing. */
     public static ArrayList<Task> loadTasks(File file) throws IOException {
         ArrayList<Task> tasks = new ArrayList<>();
         BufferedReader br = new BufferedReader(new FileReader(file));
@@ -41,28 +43,5 @@ public class FileHandler {
         }
         br.close();
         return tasks;
-    }
-
-    // Converts a "hh:mm AM/PM" string into "HH:mm" for storage. If the string
-    // doesn't end in AM/PM, we assume it's already in 24hr format and leave
-    // it as-is.
-    static String to24Hour(String dueTime) {
-        if (dueTime == null || dueTime.trim().isEmpty()) return "";
-        String s = dueTime.trim();
-        String up = s.toUpperCase();
-        if (!up.endsWith("AM") && !up.endsWith("PM")) return s;
-        try {
-            String[] tok = s.split("\\s+");
-            String timePart = tok[0];
-            String ampm = tok[tok.length - 1].toUpperCase();
-            String[] hm = timePart.split(":");
-            int hh = Integer.parseInt(hm[0].trim());
-            int mm = Integer.parseInt(hm[1].trim());
-            if (ampm.equals("PM") && hh < 12) hh += 12;
-            if (ampm.equals("AM") && hh == 12) hh = 0;
-            return String.format("%02d:%02d", hh, mm);
-        } catch (Exception e) {
-            return s;
-        }
     }
 }

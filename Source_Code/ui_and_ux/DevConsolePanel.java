@@ -3,21 +3,24 @@ package ui_and_ux;
 import core.Task;
 import java.awt.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import logic.Scheduler;
 import logic.TaskManager;
+import logic.TaskSorter;
 
-// The "Dev Console" tab. This is a testing/debugging tool, not something a
-// real user would normally see - it lets us pretend "today" is a different
-// date so we can check that overdue/missed logic and the calendar behave
-// correctly without waiting for real time to pass.
+/* The Dev Console tab. A testing tool that lets us pretend today
+   is a different date so we can verify that missed-task detection,
+   the calendar highlights, and the time-left column all behave
+   correctly without waiting for real time to pass. */
 public class DevConsolePanel {
 
     static JTextArea devLog;
 
-    // Builds the dev console: a date input + button at the top, and a log
-    // area below showing what happened each time the fake date is changed.
+    /* Builds the dev console: a date input and Set Date button at
+       the top, and a scrollable log area below showing what changed
+       each time the fake date is updated. */
     public static JPanel build(JFrame frame, TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -37,31 +40,27 @@ public class DevConsolePanel {
         devLog.setFont(new Font("Monospaced", Font.PLAIN, 12));
         devLog.setText("Dev Console ready.\nCurrent date: " + fakeTodayRef[0] + "\n");
 
-        // Same 8/12/8/12 padding as the Tasks and Calendar tabs, so the
-        // log area doesn't sit flush against the window edges.
+        /* Same padding as the other tabs for visual consistency. */
         JPanel logWrapper = new JPanel(new BorderLayout());
         logWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         logWrapper.add(new JScrollPane(devLog), BorderLayout.CENTER);
         panel.add(logWrapper, BorderLayout.CENTER);
 
-        // When "Set Date" is clicked: update the shared fake-today reference,
-        // re-run the missed-task check against the new date, log which tasks
-        // changed status, then refresh the Tasks table and Calendar so the
-        // whole app reflects the new "today".
+        /* When Set Date is clicked: update the shared fake-today reference,
+           re-run the missed-task check, log which tasks changed, then
+           refresh the Tasks table and Calendar to reflect the new date. */
         setDateBtn.addActionListener(e -> {
             try {
                 fakeTodayRef[0] = LocalDate.parse(dateField.getText().trim());
                 devLog.append("Fake date set to: " + fakeTodayRef[0] + "\n");
                 devLog.append("Running scheduler...\n");
 
-                // checkAndMarkMissed already returns exactly the tasks that
-                // just flipped to MISSED, so we only need to call it once.
-                java.util.ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+                ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 for (Task t : newlyMissed) {
                     devLog.append("  CHANGED: " + t.title + " -> " + t.status + "\n");
                 }
 
-                Scheduler.sortByDueDate(tm.tasks);
+                TaskSorter.sort(tm.tasks);
                 TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
                 CalendarPanel.render(tm.tasks);
                 devLog.append("Done.\n");
