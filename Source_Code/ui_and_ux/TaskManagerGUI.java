@@ -6,6 +6,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import logic.Scheduler;
 import logic.TaskManager;
+import logic.TimeDisplay;
 
 public class TaskManagerGUI {
 
@@ -16,6 +17,9 @@ public class TaskManagerGUI {
         try {
             tm.tasks = FileHandler.loadTasks();
             tm.tasks.removeIf(t -> t.title == null || t.title.trim().isEmpty());
+            for (var t : tm.tasks) {
+                t.dueTime = TimeDisplay.formatTo12Hour(t.dueTime);
+            }
         } catch (Exception e) {
             // No saved file yet, start empty
         }

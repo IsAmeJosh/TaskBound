@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 
 public class TimeDisplay {
 
+    // Returns human readable time-left string
     public static String getTimeLeftDisplay(String dueDate, String dueTime, LocalDate fakeToday) {
         LocalDate due = parseDate(dueDate);
         if (due == null) return "Unknown";
@@ -30,6 +31,7 @@ public class TimeDisplay {
         }
     }
 
+    // Parse date in YYYY-MM-DD
     public static LocalDate parseDate(String dueDate) {
         if (dueDate == null) return null;
         try {
@@ -44,16 +46,43 @@ public class TimeDisplay {
         }
     }
 
+    // Parse time accepting "HH:mm" or "hh:mm AM/PM"
     public static LocalTime parseTime(String dueTime) {
         if (dueTime == null || dueTime.trim().isEmpty()) return null;
         try {
-            String[] parts = dueTime.trim().split(":");
-            if (parts.length != 2) return null;
-            int hour = Integer.parseInt(parts[0]);
-            int minute = Integer.parseInt(parts[1]);
-            return LocalTime.of(hour, minute);
+            String s = dueTime.trim();
+            String up = s.toUpperCase();
+            if (up.endsWith("AM") || up.endsWith("PM")) {
+                String[] parts = s.split("\\s+");
+                String timePart = parts[0];
+                String ampm = parts[parts.length - 1].toUpperCase();
+                String[] hm = timePart.split(":");
+                int hh = Integer.parseInt(hm[0].trim());
+                int mm = Integer.parseInt(hm[1].trim());
+                if (ampm.equals("PM") && hh < 12) hh += 12;
+                if (ampm.equals("AM") && hh == 12) hh = 0;
+                return LocalTime.of(hh, mm);
+            } else {
+                String[] hm = s.split(":");
+                int hh = Integer.parseInt(hm[0].trim());
+                int mm = Integer.parseInt(hm[1].trim());
+                return LocalTime.of(hh, mm);
+            }
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // Format any accepted time into "hh:mm AM/PM"
+    public static String formatTo12Hour(String dueTime) {
+        if (dueTime == null || dueTime.trim().isEmpty()) return "";
+        LocalTime lt = parseTime(dueTime);
+        if (lt == null) return dueTime.trim();
+        int hour = lt.getHour();
+        int minute = lt.getMinute();
+        String period = hour >= 12 ? "PM" : "AM";
+        int h12 = hour % 12;
+        if (h12 == 0) h12 = 12;
+        return String.format("%02d:%02d %s", h12, minute, period);
     }
 }
