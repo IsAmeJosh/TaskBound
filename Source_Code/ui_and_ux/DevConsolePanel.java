@@ -1,6 +1,5 @@
 package ui_and_ux;
 
-import core.Status;
 import core.Task;
 import java.awt.*;
 import java.time.LocalDate;
@@ -19,7 +18,7 @@ public class DevConsolePanel {
 
     // Builds the dev console: a date input + button at the top, and a log
     // area below showing what happened each time the fake date is changed.
-    public static JPanel build(TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
+    public static JPanel build(JFrame frame, TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
         JPanel panel = new JPanel(new BorderLayout());
 
         JPanel controls = new JPanel();
@@ -54,17 +53,20 @@ public class DevConsolePanel {
                 fakeTodayRef[0] = LocalDate.parse(dateField.getText().trim());
                 devLog.append("Fake date set to: " + fakeTodayRef[0] + "\n");
                 devLog.append("Running scheduler...\n");
-                for (Task t : tm.tasks) {
-                    Status before = t.status;
-                    Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
-                    if (t.status != before) {
-                        devLog.append("  CHANGED: " + t.title + " -> " + t.status + "\n");
-                    }
+
+                // checkAndMarkMissed already returns exactly the tasks that
+                // just flipped to MISSED, so we only need to call it once.
+                java.util.ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+                for (Task t : newlyMissed) {
+                    devLog.append("  CHANGED: " + t.title + " -> " + t.status + "\n");
                 }
+
                 Scheduler.sortByDueDate(tm.tasks);
                 TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
                 CalendarPanel.render(tm.tasks);
                 devLog.append("Done.\n");
+
+                TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
             } catch (Exception ex) {
                 devLog.append("Invalid date format. Use YYYY-MM-DD.\n");
             }

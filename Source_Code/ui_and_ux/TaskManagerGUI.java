@@ -59,7 +59,7 @@ public class TaskManagerGUI {
         tabs.setFocusable(false);
         tabs.addTab("Tasks", TasksPanel.build(frame, tm, tableModel, fakeTodayRef));
         tabs.addTab("Calendar", CalendarPanel.build(tm.tasks));
-        tabs.addTab("Dev Console", DevConsolePanel.build(tm, tableModel, fakeTodayRef));
+        tabs.addTab("Dev Console", DevConsolePanel.build(frame, tm, tableModel, fakeTodayRef));
 
         // Re-render the calendar whenever the user switches to that tab, so
         // it reflects any task changes made while on the other tabs.

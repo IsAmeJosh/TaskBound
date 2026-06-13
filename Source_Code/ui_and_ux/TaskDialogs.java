@@ -2,7 +2,7 @@ package ui_and_ux;
 
 import core.Status;
 import core.Task;
-import java.awt.*;
+import java.util.ArrayList;
 import javax.swing.*;
 import logic.TimeDisplay;
 
@@ -184,5 +184,48 @@ public class TaskDialogs {
         String dueTime = hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem();
         sel.dueTime = TimeDisplay.formatTo12Hour(dueTime);
         return true;
+    }
+
+    // Shows a small congratulations popup when a task is marked COMPLETE.
+    public static void showCompletedPopup(JFrame frame, Task t) {
+        JOptionPane.showMessageDialog(
+            frame,
+            "Great job finishing \"" + t.title + "\"! Keep it up!",
+            "Task Completed",
+            JOptionPane.INFORMATION_MESSAGE
+        );
+    }
+
+    // Shows a gentle encouragement popup when a single task is manually
+    // marked MISSED (e.g. via the Change Status dialog).
+    public static void showSingleMissedPopup(JFrame frame, Task t) {
+        JOptionPane.showMessageDialog(
+            frame,
+            "\"" + t.title + "\" was marked as missed. Don't worry, you can still catch up on the next one!",
+            "Task Missed",
+            JOptionPane.WARNING_MESSAGE
+        );
+    }
+
+    // Shows an encouragement popup for tasks that just became MISSED
+    // automatically (e.g. after Sync, Load, or a Dev Console date change).
+    // Wording adjusts for singular vs plural so it reads naturally either way.
+    public static void showNewlyMissedPopup(JFrame frame, ArrayList<Task> newlyMissed) {
+        if (newlyMissed == null || newlyMissed.isEmpty()) return;
+
+        String message;
+        if (newlyMissed.size() == 1) {
+            message = "You missed 1 task today: \"" + newlyMissed.get(0).title
+                + "\". Don't worry, you can still catch up on the next one!";
+        } else {
+            message = "You missed " + newlyMissed.size() + " tasks today. Don't worry, you can still catch up on the next ones!";
+        }
+
+        JOptionPane.showMessageDialog(
+            frame,
+            message,
+            "Missed Tasks",
+            JOptionPane.WARNING_MESSAGE
+        );
     }
 }

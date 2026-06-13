@@ -118,11 +118,12 @@ public class TasksPanel {
         syncBtn.addActionListener(e -> {
             tm.tasks = LMSMockData.getFakeTasks();
             TimeDisplay.normalizeAllTimes(tm.tasks);
-            Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+            ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
             Scheduler.sortByDueDate(tm.tasks);
             TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
             refresh(tm, tableModel, fakeTodayRef[0]);
             JOptionPane.showMessageDialog(frame, "LMS Synced!");
+            TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
         });
 
         // ---- Add Task: show the popup and add whatever it returns ----
@@ -187,14 +188,35 @@ public class TasksPanel {
                 return;
             }
 
+            // Remember the status before the dialog runs, so we can tell
+            // whether the user just changed it to COMPLETE or MISSED.
+            Status statusBefore = sel.status;
+
             boolean confirmed = TaskDialogs.showEditTaskDialog(frame, sel);
             if (confirmed) {
-                Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+                ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 Scheduler.sortByDueDate(tm.tasks);
                 // Clear the selection first so we don't end up highlighting
                 // the wrong row after the list gets re-sorted.
                 table.clearSelection();
                 refresh(tm, tableModel, fakeTodayRef[0]);
+
+                // Pop up a message based on what the status just changed to.
+                // We only react to a *change*, so re-confirming the same
+                // status doesn't spam the user with repeat popups.
+                if (statusBefore != Status.COMPLETE && sel.status == Status.COMPLETE) {
+                    TaskDialogs.showCompletedPopup(frame, sel);
+                } else if (statusBefore != Status.MISSED && sel.status == Status.MISSED) {
+                    TaskDialogs.showSingleMissedPopup(frame, sel);
+                }
+
+                // Also notify about any other tasks that became MISSED
+                // automatically as a side effect of this change (e.g. the
+                // date edit pushed another task's due date into the past).
+                newlyMissed.remove(sel);
+                if (!newlyMissed.isEmpty()) {
+                    TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
+                }
             }
         });
 
@@ -239,12 +261,13 @@ public class TasksPanel {
                 tm.tasks = FileHandler.loadTasks(file);
                 tm.tasks.removeIf(t -> t.title == null || t.title.trim().isEmpty());
                 TimeDisplay.normalizeAllTimes(tm.tasks);
-                Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+                ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 Scheduler.sortByDueDate(tm.tasks);
                 TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
                 refresh(tm, tableModel, fakeTodayRef[0]);
                 CalendarPanel.render(tm.tasks);
                 JOptionPane.showMessageDialog(frame, "Loaded!");
+                TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(frame, "Error loading that file.");
             }

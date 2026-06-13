@@ -15,15 +15,22 @@ public class Scheduler {
     // is before "today", flips it to MISSED. Tasks that are already COMPLETE
     // or MISSED are left alone. "today" is passed in rather than read directly
     // so the Dev Console can simulate a different date for testing.
-    public static void checkAndMarkMissed(ArrayList<Task> tasks, LocalDate today) {
+    //
+    // Returns the list of tasks that *just* became MISSED during this call,
+    // so callers can show a "you missed X task(s)" notification without
+    // re-notifying about tasks that were already missed before.
+    public static ArrayList<Task> checkAndMarkMissed(ArrayList<Task> tasks, LocalDate today) {
+        ArrayList<Task> newlyMissed = new ArrayList<>();
         for (Task t : tasks) {
             if (t.status == Status.INCOMPLETE) {
                 LocalDate due = LocalDate.parse(t.dueDate);
                 if (due.isBefore(today)) {
                     t.status = Status.MISSED;
+                    newlyMissed.add(t);
                 }
             }
         }
+        return newlyMissed;
     }
 
     // Gives each status a sort priority so completed tasks sink to the
