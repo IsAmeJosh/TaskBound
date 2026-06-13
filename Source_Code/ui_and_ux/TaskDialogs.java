@@ -2,33 +2,41 @@ package ui_and_ux;
 
 import core.Status;
 import core.Task;
+import java.awt.*;
 import java.util.ArrayList;
 import javax.swing.*;
-import logic.TimeConverter;
+import logic.TimeDisplay;
 
-/* Home to all popup dialogs used to create or edit tasks.
-   Pulling these out of TasksPanel keeps that file focused on
-   layout, while this file focuses purely on building forms,
-   showing them, and handing back what the user entered. */
+// This class is home to all the popup dialogs used to create or edit tasks.
+// Pulling these out of TasksPanel keeps that file focused on just the screen
+// layout, while this file focuses purely on "build a form, show it, hand
+// back what the user entered".
 public class TaskDialogs {
 
-    /* Shared options used by the date and time pickers in both dialogs. */
+    // Shared list of options used by the date/time pickers in both dialogs below.
     private static final String[] YEARS = {"2026", "2027", "2028"};
     private static final String[] MONTHS = {"01","02","03","04","05","06","07","08","09","10","11","12"};
     private static final String[] HOURS_12 = {"12","01","02","03","04","05","06","07","08","09","10","11"};
-    private static final String[] MINUTES = {"00","15","30","45"};
     private static final String[] AMPM = {"AM","PM"};
 
-    /* Builds the list of day numbers 01 through 31 for the day dropdown. */
+    // Builds the list of minute values 00-59 for the minute dropdown, so
+    // users aren't restricted to quarter-hour increments.
+    private static String[] buildMinutes() {
+        String[] minutes = new String[60];
+        for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
+        return minutes;
+    }
+
+    // Builds the list of day numbers 01-31 for the day dropdown.
     private static String[] buildDays() {
         String[] days = new String[31];
         for (int i = 0; i < 31; i++) days[i] = String.format("%02d", i + 1);
         return days;
     }
 
-    /* Shows the Add Task popup. Returns a fully filled Task if the user
-       confirms with valid input, or null if they cancel or leave a
-       required field empty. An error message is shown in the empty case. */
+    // Shows the "Add Task" popup. Returns a fully-filled Task if the user
+    // confirms with valid input, or null if they cancel or leave required
+    // fields empty (an error message is shown in the empty-field case).
     public static Task showAddTaskDialog(JFrame frame) {
         JTextField titleField = new JTextField();
         JTextField subjectField = new JTextField();
@@ -37,9 +45,10 @@ public class TaskDialogs {
         JComboBox<String> monthBox = new JComboBox<>(MONTHS);
         JComboBox<String> dayBox = new JComboBox<>(buildDays());
         JComboBox<String> hourBox = new JComboBox<>(HOURS_12);
-        JComboBox<String> minuteBox = new JComboBox<>(MINUTES);
+        JComboBox<String> minuteBox = new JComboBox<>(buildMinutes());
         JComboBox<String> ampmBox = new JComboBox<>(AMPM);
-
+        // None of these dropdowns need to show a focus ring after a selection,
+        // so we turn focusability off on all of them.
         yearBox.setFocusable(false);
         monthBox.setFocusable(false);
         dayBox.setFocusable(false);
@@ -73,21 +82,21 @@ public class TaskDialogs {
             return null;
         }
 
-        /* New tasks always start as INCOMPLETE since they have not been worked on yet. */
+        // New tasks always start as INCOMPLETE since they haven't been worked on yet.
         Task t = new Task();
         t.title = title;
         t.subject = subject;
         t.dueDate = yearBox.getSelectedItem() + "-" + monthBox.getSelectedItem() + "-" + dayBox.getSelectedItem();
         String dueTime = hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem();
-        t.dueTime = TimeConverter.formatTo12Hour(dueTime);
+        t.dueTime = TimeDisplay.formatTo12Hour(dueTime);
         t.status = Status.INCOMPLETE;
         return t;
     }
 
-    /* Shows the Change Status popup pre-filled with the selected task's
-       current status, due date, and due time. If the user confirms, the
-       task is updated in place and this returns true. Returns false if
-       the user cancels, leaving the task untouched. */
+    // Shows the "Change Status" popup, pre-filled with the selected task's
+    // current status, due date, and due time. If the user confirms, the
+    // task object is updated in place and this returns true. Returns false
+    // if the user cancels (in which case the task is left untouched).
     public static boolean showEditTaskDialog(JFrame frame, Task sel) {
         Status[] options = {Status.INCOMPLETE, Status.COMPLETE, Status.MISSED};
         JComboBox<Status> statusBox = new JComboBox<>(options);
@@ -101,7 +110,7 @@ public class TaskDialogs {
         monthBox.setFocusable(false);
         dayBox.setFocusable(false);
 
-        /* Pre-fill the date pickers with the task's existing due date. */
+        // Pre-fill the date pickers with the task's existing due date, if it's valid.
         if (sel.dueDate != null && sel.dueDate.contains("-")) {
             String[] p = sel.dueDate.split("-");
             if (p.length == 3) {
@@ -112,15 +121,15 @@ public class TaskDialogs {
         }
 
         JComboBox<String> hourBox = new JComboBox<>(HOURS_12);
-        JComboBox<String> minuteBox = new JComboBox<>(MINUTES);
+        JComboBox<String> minuteBox = new JComboBox<>(buildMinutes());
         JComboBox<String> ampmBox = new JComboBox<>(AMPM);
         hourBox.setFocusable(false);
         minuteBox.setFocusable(false);
         ampmBox.setFocusable(false);
 
-        /* Pre-fill the time pickers with the task's existing due time.
-           Handles both HH:mm and hh:mm AM/PM since older saved data
-           might still be in 24hr format. */
+        // Pre-fill the time pickers with the task's existing due time, if it's valid.
+        // This handles both "HH:mm" and "hh:mm AM/PM" formats since older saved
+        // data might still be in 24hr format.
         if (sel.dueTime != null && sel.dueTime.contains(":")) {
             try {
                 String s = sel.dueTime.trim();
@@ -134,28 +143,23 @@ public class TaskDialogs {
                 int hh = Integer.parseInt(hm[0].trim());
                 int mm = Integer.parseInt(hm[1].trim());
                 if (period == null) {
-                    /* Time was in 24hr format, work out AM/PM and the 12hr hour. */
+                    // Time was in 24hr format, so work out AM/PM and the 12hr hour ourselves.
                     period = hh >= 12 ? "PM" : "AM";
                     int h12 = hh % 12;
                     if (h12 == 0) h12 = 12;
                     hourBox.setSelectedItem(String.format("%02d", h12));
                 } else {
-                    /* Time already had AM/PM, just normalize 00 to 12. */
+                    // Time already had AM/PM attached, so just normalize "00" to "12".
                     int display = hh == 0 ? 12 : hh;
                     hourBox.setSelectedItem(String.format("%02d", display));
                 }
                 String mmStr = String.format("%02d", mm);
-                boolean found = false;
-                for (int i = 0; i < minuteBox.getItemCount(); i++) {
-                    if (minuteBox.getItemAt(i).equals(mmStr)) { found = true; break; }
-                }
-                /* If the saved minute is not a preset option, add it so
-                   the user's data is not silently changed. */
-                if (!found) minuteBox.addItem(mmStr);
+                // buildMinutes() now covers all 00-59, so the saved value
+                // is always one of the dropdown's options.
                 minuteBox.setSelectedItem(mmStr);
                 ampmBox.setSelectedItem(period);
             } catch (Exception ex) {
-                /* Leave pickers at defaults if parsing fails. */
+                // If parsing fails for any reason, just leave the pickers at their defaults.
             }
         }
 
@@ -177,15 +181,15 @@ public class TaskDialogs {
         int res = JOptionPane.showConfirmDialog(frame, fields, "Change Status", JOptionPane.OK_CANCEL_OPTION);
         if (res != JOptionPane.OK_OPTION) return false;
 
-        /* Write all edited values back onto the task. */
+        // Write all the edited values back onto the task.
         sel.status = (Status) statusBox.getSelectedItem();
         sel.dueDate = yearBox.getSelectedItem() + "-" + monthBox.getSelectedItem() + "-" + dayBox.getSelectedItem();
         String dueTime = hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem();
-        sel.dueTime = TimeConverter.formatTo12Hour(dueTime);
+        sel.dueTime = TimeDisplay.formatTo12Hour(dueTime);
         return true;
     }
 
-    /* Shows a congratulations popup when a task is marked COMPLETE. */
+    // Shows a small congratulations popup when a task is marked COMPLETE.
     public static void showCompletedPopup(JFrame frame, Task t) {
         JOptionPane.showMessageDialog(
             frame,
@@ -195,27 +199,36 @@ public class TaskDialogs {
         );
     }
 
-    /* Shows an encouragement popup when a task is manually marked MISSED. */
+    // Shows a gentle encouragement popup when a single task is manually
+    // marked MISSED (e.g. via the Change Status dialog).
     public static void showSingleMissedPopup(JFrame frame, Task t) {
         JOptionPane.showMessageDialog(
             frame,
-            "\"" + t.title + "\" was marked as missed. Don't worry, you can still catch up!",
+            "\"" + t.title + "\" was marked as missed. Don't worry, you can still catch up on the next one!",
             "Task Missed",
             JOptionPane.WARNING_MESSAGE
         );
     }
 
-    /* Shows an encouragement popup for tasks that just became MISSED
-       automatically after a sync, load, or Dev Console date change.
-       Wording adjusts for singular vs plural. */
+    // Shows an encouragement popup for tasks that just became MISSED
+    // automatically (e.g. after Sync, Load, or a Dev Console date change).
+    // Wording adjusts for singular vs plural so it reads naturally either way.
     public static void showNewlyMissedPopup(JFrame frame, ArrayList<Task> newlyMissed) {
         if (newlyMissed == null || newlyMissed.isEmpty()) return;
+
         String message;
         if (newlyMissed.size() == 1) {
-            message = "You missed 1 task: \"" + newlyMissed.get(0).title + "\". Don't worry, keep going!";
+            message = "You missed 1 task today: \"" + newlyMissed.get(0).title
+                + "\". Don't worry, you can still catch up on the next one!";
         } else {
-            message = "You missed " + newlyMissed.size() + " tasks. Don't worry, keep going!";
+            message = "You missed " + newlyMissed.size() + " tasks today. Don't worry, you can still catch up on the next ones!";
         }
-        JOptionPane.showMessageDialog(frame, message, "Missed Tasks", JOptionPane.WARNING_MESSAGE);
+
+        JOptionPane.showMessageDialog(
+            frame,
+            message,
+            "Missed Tasks",
+            JOptionPane.WARNING_MESSAGE
+        );
     }
 }
