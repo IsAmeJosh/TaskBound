@@ -4,8 +4,16 @@ import core.Status;
 import core.Task;
 import java.util.ArrayList;
 
+// Stands in for a real LMS (Learning Management System) connection. Hitting
+// "Sync LMS" calls getFakeTasks() to pretend we just pulled a fresh task list
+// from Canvas/Blackboard. Replace this with a real API call later without
+// having to change anything else in the app - TasksPanel just calls
+// getFakeTasks() and doesn't care where the data comes from.
 public class LMSMockData {
 
+    // Returns a hardcoded set of sample tasks covering each subject, with a
+    // mix of due dates/times so overdue, due-today, and upcoming filters all
+    // have something to show.
     public static ArrayList<Task> getFakeTasks() {
         ArrayList<Task> fakeTasks = new ArrayList<>();
 

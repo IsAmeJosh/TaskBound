@@ -4,6 +4,7 @@ import core.Status;
 import core.Task;
 import data.FileHandler;
 import java.awt.*;
+import java.io.File;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import javax.swing.*;
@@ -14,59 +15,20 @@ import logic.TaskFilter;
 import logic.TaskManager;
 import logic.TimeDisplay;
 
+// This is the main "Tasks" tab. It's responsible for laying out the filter
+// dropdowns, the task table, and the action buttons, then wiring each button
+// up to the right logic. The actual popup forms live in TaskDialogs, and the
+// actual filtering/time-formatting logic lives in TaskFilter and TimeDisplay.
 public class TasksPanel {
 
     static JComboBox<String> subjectFilterBox;
     static JComboBox<String> statusFilterBox;
 
-    // Convert any time string to 12hr display format
-    static String to12Hour(String time) {
-        if (time == null) return "";
-        String s = time.trim();
-        if (s.isEmpty()) return "";
-        String up = s.toUpperCase();
-        if (up.endsWith("AM") || up.endsWith("PM")) {
-            String[] parts = s.split("\\s+");
-            String timePart = parts[0];
-            String ampm = parts[parts.length - 1].toUpperCase();
-            if (!timePart.contains(":")) return timePart + " " + ampm;
-            String[] hm = timePart.split(":");
-            try {
-                int hh = Integer.parseInt(hm[0].trim());
-                int mm = Integer.parseInt(hm[1].trim());
-                return String.format("%02d:%02d %s", hh, mm, ampm);
-            } catch (Exception e) {
-                return timePart + " " + ampm;
-            }
-        }
-        if (s.contains(":")) {
-            try {
-                String[] p = s.split(":");
-                int hh = Integer.parseInt(p[0].trim());
-                int mm = Integer.parseInt(p[1].trim().split("\\s+")[0]);
-                String period = hh >= 12 ? "PM" : "AM";
-                int h12 = hh % 12;
-                if (h12 == 0) h12 = 12;
-                return String.format("%02d:%02d %s", h12, mm, period);
-            } catch (Exception e) {
-                return s;
-            }
-        }
-        return s;
-    }
-
-    // Normalize all task times to 12hr on load
-    static void normalizeAllTimes(TaskManager tm) {
-        if (tm == null || tm.tasks == null) return;
-        for (Task t : tm.tasks) {
-            if (t != null) t.dueTime = to12Hour(t.dueTime);
-        }
-    }
-
+    // Builds the whole Tasks tab and returns it ready to drop into a JTabbedPane.
     public static JPanel build(JFrame frame, TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
         JPanel panel = new JPanel(new BorderLayout());
 
-        // Filter panel
+        // ---- Filter bar at the top ----
         JPanel filterPanel = new JPanel();
         filterPanel.add(new JLabel("Subject:"));
         subjectFilterBox = new JComboBox<>();
@@ -80,10 +42,14 @@ public class TasksPanel {
         filterPanel.add(statusFilterBox);
         panel.add(filterPanel, BorderLayout.NORTH);
 
+        // Re-filter the table whenever either dropdown changes.
         subjectFilterBox.addActionListener(e -> refresh(tm, tableModel, fakeTodayRef[0]));
         statusFilterBox.addActionListener(e -> refresh(tm, tableModel, fakeTodayRef[0]));
 
-        // Table
+        // ---- The task table itself ----
+        // We override prepareRenderer so each row gets a background color
+        // based on its status: red-ish for missed, green for complete,
+        // yellow for everything else (incomplete/pending).
         JTable table = new JTable(tableModel) {
             @Override
             public Component prepareRenderer(javax.swing.table.TableCellRenderer r, int row, int col) {
@@ -111,41 +77,47 @@ public class TasksPanel {
         table.getTableHeader().setResizingAllowed(false);
         table.getTableHeader().setEnabled(false);
 
-        normalizeAllTimes(tm);
+        // Make sure every task's due time is in a consistent format before we
+        // populate the filter dropdown and the table for the first time.
+        TimeDisplay.normalizeAllTimes(tm.tasks);
         TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
         refresh(tm, tableModel, fakeTodayRef[0]);
 
-        // Table with padding from edges
+        // Wrap the table in some padding so it doesn't touch the edges of the window.
         JScrollPane scrollPane = new JScrollPane(table);
         JPanel tableWrapper = new JPanel(new BorderLayout());
         tableWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         tableWrapper.add(scrollPane, BorderLayout.CENTER);
         panel.add(tableWrapper, BorderLayout.CENTER);
 
-        // Button panel
+        // ---- Button bar at the bottom ----
         JPanel buttonPanel = new JPanel();
         JButton syncBtn = new JButton("Sync LMS");
         JButton addBtn = new JButton("Add Task");
         JButton deleteBtn = new JButton("Delete Task");
         JButton statusBtn = new JButton("Change Status");
         JButton saveBtn = new JButton("Save");
+        JButton loadBtn = new JButton("Load");
 
         syncBtn.setFocusable(false);
         addBtn.setFocusable(false);
         deleteBtn.setFocusable(false);
         statusBtn.setFocusable(false);
         saveBtn.setFocusable(false);
+        loadBtn.setFocusable(false);
 
         buttonPanel.add(syncBtn);
         buttonPanel.add(addBtn);
         buttonPanel.add(deleteBtn);
         buttonPanel.add(statusBtn);
         buttonPanel.add(saveBtn);
+        buttonPanel.add(loadBtn);
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
+        // ---- Sync LMS: replace all tasks with fresh mock data from the LMS ----
         syncBtn.addActionListener(e -> {
             tm.tasks = LMSMockData.getFakeTasks();
-            normalizeAllTimes(tm);
+            TimeDisplay.normalizeAllTimes(tm.tasks);
             Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
             Scheduler.sortByDueDate(tm.tasks);
             TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
@@ -153,71 +125,28 @@ public class TasksPanel {
             JOptionPane.showMessageDialog(frame, "LMS Synced!");
         });
 
+        // ---- Add Task: show the popup and add whatever it returns ----
         addBtn.addActionListener(e -> {
-            JTextField titleField = new JTextField();
-            JTextField subjectField = new JTextField();
+            Task t = TaskDialogs.showAddTaskDialog(frame);
+            if (t == null) return; // user cancelled or left a field empty
 
-            String[] years = {"2026","2027","2028"};
-            String[] months = {"01","02","03","04","05","06","07","08","09","10","11","12"};
-            String[] days = new String[31];
-            for (int i = 0; i < 31; i++) days[i] = String.format("%02d", i + 1);
-            String[] hours12 = {"12","01","02","03","04","05","06","07","08","09","10","11"};
-            String[] minutes = {"00","15","30","45"};
-            String[] ampm = {"AM","PM"};
-
-            JComboBox<String> yearBox = new JComboBox<>(years);
-            JComboBox<String> monthBox = new JComboBox<>(months);
-            JComboBox<String> dayBox = new JComboBox<>(days);
-            JComboBox<String> hourBox = new JComboBox<>(hours12);
-            JComboBox<String> minuteBox = new JComboBox<>(minutes);
-            JComboBox<String> ampmBox = new JComboBox<>(ampm);
-
-            JPanel datePanel = new JPanel();
-            datePanel.add(yearBox); datePanel.add(new JLabel("-"));
-            datePanel.add(monthBox); datePanel.add(new JLabel("-"));
-            datePanel.add(dayBox);
-
-            JPanel timePanel = new JPanel();
-            timePanel.add(hourBox); timePanel.add(new JLabel(":"));
-            timePanel.add(minuteBox); timePanel.add(ampmBox);
-
-            Object[] fields = {
-                "Task:", titleField,
-                "Subject:", subjectField,
-                "Due Date:", datePanel,
-                "Due Time:", timePanel
-            };
-
-            int res = JOptionPane.showConfirmDialog(frame, fields, "Add Task", JOptionPane.OK_CANCEL_OPTION);
-            if (res == JOptionPane.OK_OPTION) {
-                String title = titleField.getText().trim();
-                String subject = subjectField.getText().trim();
-                if (title.isEmpty() || subject.isEmpty()) {
-                    JOptionPane.showMessageDialog(frame, "Task and Subject cannot be empty.");
-                    return;
-                }
-                String dueTime = hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem();
-                Task t = new Task();
-                t.title = title;
-                t.subject = subject;
-                t.dueDate = yearBox.getSelectedItem() + "-" + monthBox.getSelectedItem() + "-" + dayBox.getSelectedItem();
-                t.dueTime = to12Hour(dueTime);
-                t.status = Status.INCOMPLETE;
-                tm.addTask(t);
-                Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
-                Scheduler.sortByDueDate(tm.tasks);
-                TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
-                refresh(tm, tableModel, fakeTodayRef[0]);
-            }
+            tm.addTask(t);
+            Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+            Scheduler.sortByDueDate(tm.tasks);
+            TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
+            refresh(tm, tableModel, fakeTodayRef[0]);
         });
 
+        // ---- Delete Task: remove every selected row ----
+        // We match tasks by title+subject+date instead of row index, because
+        // the table can be sorted/filtered differently than the underlying
+        // task list, so row index alone isn't reliable.
         deleteBtn.addActionListener(e -> {
             int[] rows = table.getSelectedRows();
             if (rows.length == 0) {
                 JOptionPane.showMessageDialog(frame, "Select a task to delete.");
                 return;
             }
-            // Match by title+subject+date to avoid index mismatch
             ArrayList<Task> toDelete = new ArrayList<>();
             for (int i : rows) {
                 String rowTitle   = String.valueOf(tableModel.getValueAt(i, 0));
@@ -235,13 +164,14 @@ public class TasksPanel {
             refresh(tm, tableModel, fakeTodayRef[0]);
         });
 
+        // ---- Change Status: find the selected task, then let TaskDialogs edit it ----
         statusBtn.addActionListener(e -> {
             int row = table.getSelectedRow();
             if (row < 0) {
                 JOptionPane.showMessageDialog(frame, "Select a task first.");
                 return;
             }
-            // Match by title+subject+date to avoid index mismatch after sort
+            // Same title+subject+date matching trick as Delete, for the same reason.
             String rowTitle   = String.valueOf(tableModel.getValueAt(row, 0));
             String rowSubject = String.valueOf(tableModel.getValueAt(row, 1));
             String rowDate    = String.valueOf(tableModel.getValueAt(row, 2));
@@ -257,121 +187,93 @@ public class TasksPanel {
                 return;
             }
 
-            Status[] options = {Status.INCOMPLETE, Status.COMPLETE, Status.MISSED};
-            JComboBox<Status> statusBox = new JComboBox<>(options);
-            statusBox.setSelectedItem(sel.status);
-
-            String[] years = {"2026","2027","2028"};
-            String[] months = {"01","02","03","04","05","06","07","08","09","10","11","12"};
-            String[] days = new String[31];
-            for (int i = 0; i < 31; i++) days[i] = String.format("%02d", i + 1);
-
-            JComboBox<String> yearBox = new JComboBox<>(years);
-            JComboBox<String> monthBox = new JComboBox<>(months);
-            JComboBox<String> dayBox = new JComboBox<>(days);
-
-            if (sel.dueDate != null && sel.dueDate.contains("-")) {
-                String[] p = sel.dueDate.split("-");
-                if (p.length == 3) {
-                    yearBox.setSelectedItem(p[0]);
-                    monthBox.setSelectedItem(p[1]);
-                    dayBox.setSelectedItem(p[2]);
-                }
-            }
-
-            String[] hours12 = {"12","01","02","03","04","05","06","07","08","09","10","11"};
-            String[] minutes = {"00","15","30","45"};
-            String[] ampm = {"AM","PM"};
-            JComboBox<String> hourBox = new JComboBox<>(hours12);
-            JComboBox<String> minuteBox = new JComboBox<>(minutes);
-            JComboBox<String> ampmBox = new JComboBox<>(ampm);
-
-            if (sel.dueTime != null && sel.dueTime.contains(":")) {
-                try {
-                    String s = sel.dueTime.trim();
-                    String period = null;
-                    if (s.toUpperCase().endsWith("AM") || s.toUpperCase().endsWith("PM")) {
-                        String[] tok = s.split("\\s+");
-                        period = tok[tok.length - 1].toUpperCase();
-                        s = tok[0];
-                    }
-                    String[] hm = s.split(":");
-                    int hh = Integer.parseInt(hm[0].trim());
-                    int mm = Integer.parseInt(hm[1].trim());
-                    if (period == null) {
-                        period = hh >= 12 ? "PM" : "AM";
-                        int h12 = hh % 12;
-                        if (h12 == 0) h12 = 12;
-                        hourBox.setSelectedItem(String.format("%02d", h12));
-                    } else {
-                        int display = hh == 0 ? 12 : hh;
-                        hourBox.setSelectedItem(String.format("%02d", display));
-                    }
-                    String mmStr = String.format("%02d", mm);
-                    boolean found = false;
-                    for (int i = 0; i < minuteBox.getItemCount(); i++) {
-                        if (minuteBox.getItemAt(i).equals(mmStr)) { found = true; break; }
-                    }
-                    if (!found) minuteBox.addItem(mmStr);
-                    minuteBox.setSelectedItem(mmStr);
-                    ampmBox.setSelectedItem(period);
-                } catch (Exception ex) {
-                    // leave defaults if parse fails
-                }
-            }
-
-            JPanel datePanel = new JPanel();
-            datePanel.add(yearBox); datePanel.add(new JLabel("-"));
-            datePanel.add(monthBox); datePanel.add(new JLabel("-"));
-            datePanel.add(dayBox);
-
-            JPanel timePanel = new JPanel();
-            timePanel.add(hourBox); timePanel.add(new JLabel(":"));
-            timePanel.add(minuteBox); timePanel.add(ampmBox);
-
-            Object[] fields = {
-                "Set status:", statusBox,
-                "Change due date:", datePanel,
-                "Change due time:", timePanel
-            };
-
-            int res = JOptionPane.showConfirmDialog(frame, fields, "Change Status", JOptionPane.OK_CANCEL_OPTION);
-            if (res == JOptionPane.OK_OPTION) {
-                sel.status = (Status) statusBox.getSelectedItem();
-                sel.dueDate = yearBox.getSelectedItem() + "-" + monthBox.getSelectedItem() + "-" + dayBox.getSelectedItem();
-                sel.dueTime = to12Hour(hourBox.getSelectedItem() + ":" + minuteBox.getSelectedItem() + " " + ampmBox.getSelectedItem());
+            boolean confirmed = TaskDialogs.showEditTaskDialog(frame, sel);
+            if (confirmed) {
                 Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 Scheduler.sortByDueDate(tm.tasks);
-                // Clear selection before refresh to prevent stale row index
+                // Clear the selection first so we don't end up highlighting
+                // the wrong row after the list gets re-sorted.
                 table.clearSelection();
                 refresh(tm, tableModel, fakeTodayRef[0]);
             }
         });
 
+        // ---- Save: let the user pick where to save, then write tasks there ----
         saveBtn.addActionListener(e -> {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Save Tasks");
+            chooser.setSelectedFile(new File("tasks.csv"));
+
+            int result = chooser.showSaveDialog(frame);
+            if (result != JFileChooser.APPROVE_OPTION) return; // user cancelled
+
+            File file = chooser.getSelectedFile();
+            // If the user didn't type an extension, default to .csv so the
+            // file is easy to recognize and reload later.
+            if (!file.getName().toLowerCase().endsWith(".csv")) {
+                file = new File(file.getParentFile(), file.getName() + ".csv");
+            }
+
             try {
-                FileHandler.saveTasks(tm.tasks);
+                FileHandler.saveTasks(tm.tasks, file);
                 JOptionPane.showMessageDialog(frame, "Saved!");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(frame, "Error saving.");
             }
         });
 
+        // ---- Load: let the user pick a previously-saved CSV and load it in ----
+        // This is the only way saved tasks get back into the app, since we
+        // no longer auto-load on startup. Any unsaved changes in memory are
+        // discarded when this is clicked.
+        loadBtn.addActionListener(e -> {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Load Tasks");
+            chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("CSV files", "csv"));
+
+            int result = chooser.showOpenDialog(frame);
+            if (result != JFileChooser.APPROVE_OPTION) return; // user cancelled
+
+            File file = chooser.getSelectedFile();
+            try {
+                tm.tasks = FileHandler.loadTasks(file);
+                tm.tasks.removeIf(t -> t.title == null || t.title.trim().isEmpty());
+                TimeDisplay.normalizeAllTimes(tm.tasks);
+                Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
+                Scheduler.sortByDueDate(tm.tasks);
+                TaskFilter.refreshSubjectFilterOptions(tm.tasks, subjectFilterBox);
+                refresh(tm, tableModel, fakeTodayRef[0]);
+                CalendarPanel.render(tm.tasks);
+                JOptionPane.showMessageDialog(frame, "Loaded!");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(frame, "Error loading that file.");
+            }
+        });
+
         return panel;
     }
 
+    // Rebuilds the table contents based on the current filter selections.
+    // Called whenever tasks change, filters change, or the fake date changes.
     public static void refresh(TaskManager tm, DefaultTableModel tableModel, LocalDate fakeToday) {
         if (tableModel == null) return;
         tableModel.setRowCount(0);
         ArrayList<Task> filtered = TaskFilter.getFilteredTasks(tm.tasks, subjectFilterBox, statusFilterBox, fakeToday);
         for (Task t : filtered) {
+            // For completed or missed tasks, the countdown no longer matters,
+            // so leave the "Time Left" column blank instead of showing a
+            // stale "X days left"/"Overdue by..." value.
+            String timeLeft = (t.status == Status.COMPLETE || t.status == Status.MISSED)
+                ? ""
+                : TimeDisplay.getTimeLeftDisplay(t.dueDate, t.dueTime, fakeToday);
+
             tableModel.addRow(new Object[]{
                 t.title,
                 t.subject,
                 t.dueDate,
-                to12Hour(t.dueTime),
+                TimeDisplay.formatTo12Hour(t.dueTime),
                 t.status,
-                TimeDisplay.getTimeLeftDisplay(t.dueDate, t.dueTime, fakeToday)
+                timeLeft
             });
         }
     }

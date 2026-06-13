@@ -1,21 +1,32 @@
 package logic;
 
+import core.Task;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 
+// This class handles everything related to dates and times: parsing them,
+// converting between 12hr/24hr formats, and figuring out how much time is left
+// before a task is due. Keeping all of this in one place means we only have
+// one source of truth for "what does this date/time string actually mean".
 public class TimeDisplay {
 
-    // Returns human readable time-left string
+    // Builds the "time left" text shown in the table, e.g. "2 days left",
+    // "3h 15m left", or "Overdue by 1 day". fakeToday lets the Dev Console
+    // simulate a different "current date" for testing.
     public static String getTimeLeftDisplay(String dueDate, String dueTime, LocalDate fakeToday) {
         LocalDate due = parseDate(dueDate);
         if (due == null) return "Unknown";
 
         if (due.isBefore(fakeToday)) {
+            // The due date has already passed, so show how many days overdue.
             long daysOverdue = ChronoUnit.DAYS.between(due, fakeToday);
             return "Overdue by " + daysOverdue + (daysOverdue == 1 ? " day" : " days");
         } else if (due.isEqual(fakeToday)) {
+            // Due today: count down the remaining hours and minutes until the cutoff time.
+            // If no valid due time is set, fall back to counting down to the end of the day.
             LocalTime cutoffTime = parseTime(dueTime);
             if (cutoffTime == null) cutoffTime = LocalTime.MAX;
             LocalDateTime now = LocalDateTime.now();
@@ -26,12 +37,14 @@ public class TimeDisplay {
             long minutes = minutesLeft % 60;
             return hours + "h " + minutes + "m left";
         } else {
+            // Due date is in the future, just show how many days are left.
             long daysLeft = ChronoUnit.DAYS.between(fakeToday, due);
             return daysLeft + (daysLeft == 1 ? " day left" : " days left");
         }
     }
 
-    // Parse date in YYYY-MM-DD
+    // Parses a "YYYY-MM-DD" string into a LocalDate. Returns null if the
+    // string is missing or malformed so callers can handle bad data gracefully.
     public static LocalDate parseDate(String dueDate) {
         if (dueDate == null) return null;
         try {
@@ -46,7 +59,9 @@ public class TimeDisplay {
         }
     }
 
-    // Parse time accepting "HH:mm" or "hh:mm AM/PM"
+    // Parses a time string that could be either "HH:mm" (24hr) or
+    // "hh:mm AM/PM" (12hr) and returns a LocalTime. Returns null if the
+    // string is empty or can't be understood.
     public static LocalTime parseTime(String dueTime) {
         if (dueTime == null || dueTime.trim().isEmpty()) return null;
         try {
@@ -73,7 +88,9 @@ public class TimeDisplay {
         }
     }
 
-    // Format any accepted time into "hh:mm AM/PM"
+    // Takes any time string we can parse and reformats it as "hh:mm AM/PM".
+    // If we can't parse it at all, just return the original text untouched
+    // rather than losing the user's data.
     public static String formatTo12Hour(String dueTime) {
         if (dueTime == null || dueTime.trim().isEmpty()) return "";
         LocalTime lt = parseTime(dueTime);
@@ -84,5 +101,23 @@ public class TimeDisplay {
         int h12 = hour % 12;
         if (h12 == 0) h12 = 12;
         return String.format("%02d:%02d %s", h12, minute, period);
+    }
+
+    // Same idea as formatTo12Hour, but this is the version that was previously
+    // duplicated inside TasksPanel. Moved here so all time-formatting logic
+    // lives in one place. Functionally identical to formatTo12Hour, kept as
+    // an alias so existing calls (to12Hour) keep working without confusion.
+    public static String to12Hour(String time) {
+        return formatTo12Hour(time);
+    }
+
+    // Goes through every task in the list and rewrites its dueTime to the
+    // standard "hh:mm AM/PM" format. Useful right after loading tasks from
+    // a file or syncing from the LMS, since those sources might use 24hr time.
+    public static void normalizeAllTimes(ArrayList<Task> tasks) {
+        if (tasks == null) return;
+        for (Task t : tasks) {
+            if (t != null) t.dueTime = formatTo12Hour(t.dueTime);
+        }
     }
 }

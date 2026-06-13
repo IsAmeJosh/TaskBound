@@ -1,15 +1,19 @@
 package data;
 
-import core.Task;
 import core.Status;
+import core.Task;
 import java.io.*;
 import java.util.ArrayList;
 
+// Handles saving and loading tasks to/from a CSV file on disk. We always
+// store times in 24hr format in the file (since it's unambiguous and easy
+// to parse back), but display them in 12hr format in the UI.
 public class FileHandler {
 
-    // Save time in 24hr format to keep CSV clean
-    public static void saveTasks(ArrayList<Task> tasks) throws IOException {
-        FileWriter fw = new FileWriter("tasks.csv");
+    // Writes every task out as one CSV line: title, subject, due date,
+    // due time (in 24hr format), and status, to the given file.
+    public static void saveTasks(ArrayList<Task> tasks, File file) throws IOException {
+        FileWriter fw = new FileWriter(file);
         for (Task t : tasks) {
             String time24 = to24Hour(t.dueTime);
             fw.write(t.title + "," + t.subject + "," + t.dueDate + "," + time24 + "," + t.status + "\n");
@@ -17,10 +21,12 @@ public class FileHandler {
         fw.close();
     }
 
-    // Load tasks and convert time to 12hr for display
-    public static ArrayList<Task> loadTasks() throws IOException {
+    // Reads tasks back from the given CSV file. Lines with fewer than 5
+    // fields are skipped (likely leftover blank/corrupt lines) rather than
+    // crashing.
+    public static ArrayList<Task> loadTasks(File file) throws IOException {
         ArrayList<Task> tasks = new ArrayList<>();
-        BufferedReader br = new BufferedReader(new FileReader("tasks.csv"));
+        BufferedReader br = new BufferedReader(new FileReader(file));
         String line;
         while ((line = br.readLine()) != null) {
             String[] parts = line.split(",");
@@ -37,7 +43,9 @@ public class FileHandler {
         return tasks;
     }
 
-    // Convert "hh:mm AM/PM" to "HH:mm" for storage
+    // Converts a "hh:mm AM/PM" string into "HH:mm" for storage. If the string
+    // doesn't end in AM/PM, we assume it's already in 24hr format and leave
+    // it as-is.
     static String to24Hour(String dueTime) {
         if (dueTime == null || dueTime.trim().isEmpty()) return "";
         String s = dueTime.trim();
