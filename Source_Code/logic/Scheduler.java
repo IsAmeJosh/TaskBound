@@ -1,7 +1,7 @@
 package logic;
 
-import core.Task;
 import core.Status;
+import core.Task;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,7 +19,18 @@ public class Scheduler {
         }
     }
 
+    // Returns sort priority: COMPLETE=0, INCOMPLETE=1, MISSED=2
+    private static int statusOrder(Status s) {
+        if (s == Status.COMPLETE) return 0;
+        if (s == Status.INCOMPLETE) return 1;
+        return 2; // MISSED
+    }
+
     public static void sortByDueDate(ArrayList<Task> tasks) {
-        Collections.sort(tasks, (a, b) -> a.dueDate.compareTo(b.dueDate));
+        Collections.sort(tasks, (a, b) -> {
+            int statusCmp = Integer.compare(statusOrder(a.status), statusOrder(b.status));
+            if (statusCmp != 0) return statusCmp;
+            return a.dueDate.compareTo(b.dueDate);
+        });
     }
 }
