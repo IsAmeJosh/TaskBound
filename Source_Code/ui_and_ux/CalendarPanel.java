@@ -1,5 +1,6 @@
 package ui_and_ux;
 
+import core.Status;
 import core.Task;
 import java.awt.*;
 import java.time.LocalDate;
@@ -8,8 +9,9 @@ import java.util.ArrayList;
 import javax.swing.*;
 
 /* The Calendar tab. Shows a monthly grid where days with at least
-   one task due are highlighted yellow. Clicking a day lists the
-   tasks due on that date in a text area below the grid. */
+   one task due are highlighted. Color reflects the overall status
+   of tasks due on that day: yellow for incomplete, green for mostly
+   complete, red for mostly missed. Clicking a day lists its tasks. */
 public class CalendarPanel {
 
     static JPanel calendarGrid;
@@ -34,12 +36,19 @@ public class CalendarPanel {
         header.add(nextBtn);
         panel.add(header, BorderLayout.NORTH);
 
-        calendarGrid = new JPanel(new GridLayout(0, 7));
+        /* Grid gap of 1px keeps lines thin and consistent. */
+        calendarGrid = new JPanel(new GridLayout(0, 7, 1, 1));
 
         /* Same 8/12 padding as the Tasks tab for visual consistency. */
         JPanel gridWrapper = new JPanel(new BorderLayout());
         gridWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        gridWrapper.add(new JScrollPane(calendarGrid), BorderLayout.CENTER);
+
+        /* Remove the scroll pane border so it does not add thick lines
+           around the grid on top of the existing cell borders. */
+        JScrollPane calendarScroll = new JScrollPane(calendarGrid);
+        calendarScroll.setBorder(BorderFactory.createEmptyBorder());
+        calendarScroll.getViewport().setBorder(null);
+        gridWrapper.add(calendarScroll, BorderLayout.CENTER);
         panel.add(gridWrapper, BorderLayout.CENTER);
 
         taskDisplay.setEditable(false);
@@ -63,6 +72,39 @@ public class CalendarPanel {
         return panel;
     }
 
+    /* Converts a month enum name like JUNE to title case June. */
+    private static String toTitleCase(String input) {
+        if (input == null || input.isEmpty()) return input;
+        return input.charAt(0) + input.substring(1).toLowerCase();
+    }
+
+    /* Works out what background color a day cell should be based on
+       the tasks due on that date. Returns null if no tasks on that day.
+       Yellow = most tasks are incomplete.
+       Green  = most tasks are complete.
+       Red    = most tasks are missed.
+       On a tie, complete wins over missed, incomplete wins over missed. */
+    private static Color getDayColor(String dateStr, ArrayList<Task> tasks) {
+        int incomplete = 0, complete = 0, missed = 0;
+        for (Task t : tasks) {
+            if (t.dueDate.equals(dateStr)) {
+                if (t.status == Status.INCOMPLETE) incomplete++;
+                else if (t.status == Status.COMPLETE) complete++;
+                else if (t.status == Status.MISSED) missed++;
+            }
+        }
+        int total = incomplete + complete + missed;
+        if (total == 0) return null;
+
+        if (complete >= incomplete && complete >= missed) {
+            return new Color(182, 255, 182);
+        } else if (missed > incomplete && missed > complete) {
+            return new Color(255, 182, 182);
+        } else {
+            return new Color(255, 220, 100);
+        }
+    }
+
     /* Redraws the grid for currentMonth. Called on first build, when
        changing months, and whenever the task list changes so highlights
        stay accurate. */
@@ -77,7 +119,10 @@ public class CalendarPanel {
             calendarGrid.add(lbl);
         }
 
-        monthLabel.setText(currentMonth.getMonth() + " " + currentMonth.getYear());
+        /* Display month name in title case instead of all caps. */
+        String monthName = toTitleCase(currentMonth.getMonth().toString());
+        monthLabel.setText(monthName + " " + currentMonth.getYear());
+
         LocalDate first = currentMonth.atDay(1);
 
         /* getDayOfWeek returns 1-7 Mon-Sun. The mod 7 shifts it so
@@ -94,13 +139,13 @@ public class CalendarPanel {
                 String.format("%02d", currentMonth.getMonthValue()) + "-" +
                 String.format("%02d", day);
 
-            boolean hasTask = tasks.stream().anyMatch(t -> t.dueDate.equals(dateStr));
             JButton dayBtn = new JButton(String.valueOf(day));
             dayBtn.setFocusable(false);
 
-            /* Highlight days that have at least one task due. */
-            if (hasTask) {
-                dayBtn.setBackground(new Color(255, 220, 100));
+            /* Color the day cell based on the status mix of its tasks. */
+            Color dayColor = getDayColor(dateStr, tasks);
+            if (dayColor != null) {
+                dayBtn.setBackground(dayColor);
                 dayBtn.setOpaque(true);
             }
 
@@ -111,7 +156,8 @@ public class CalendarPanel {
                 boolean found = false;
                 for (Task t : tasks) {
                     if (t.dueDate.equals(fd)) {
-                        sb.append("- ").append(t.title).append(" [").append(t.status).append("]\n");
+                        sb.append("- ").append(t.title)
+                          .append(" [").append(t.status).append("]\n");
                         found = true;
                     }
                 }

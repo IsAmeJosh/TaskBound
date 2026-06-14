@@ -13,36 +13,52 @@ import logic.TaskSorter;
 /* The Dev Console tab. A testing tool that lets us pretend today
    is a different date so we can verify that missed-task detection,
    the calendar highlights, and the time-left column all behave
-   correctly without waiting for real time to pass. */
+   correctly without waiting for real time to pass.
+   Controls sit in labeled panels at the top, the log sits at the bottom.
+   New control panels can be added to the top section as needed. */
 public class DevConsolePanel {
 
     static JTextArea devLog;
 
-    /* Builds the dev console: a date input and Set Date button at
-       the top, and a scrollable log area below showing what changed
-       each time the fake date is updated. */
+    /* Builds the dev console: a top section for controls arranged in
+       labeled panels, and a scrollable log area at the bottom. */
     public static JPanel build(JFrame frame, TaskManager tm, DefaultTableModel tableModel, LocalDate[] fakeTodayRef) {
         JPanel panel = new JPanel(new BorderLayout());
 
-        JPanel controls = new JPanel();
-        JLabel dateLabel = new JLabel("Set Fake Date (YYYY-MM-DD):");
+        /* ---- Top section: holds all control panels ---- */
+        JPanel controlsSection = new JPanel();
+        controlsSection.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        controlsSection.setBorder(BorderFactory.createEmptyBorder(8, 12, 4, 12));
+
+        /* ---- Fake Date Setter: its own titled bordered panel ---- */
+        JPanel dateSetterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        dateSetterPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(180, 180, 180), 1),
+            "Fake Date"
+        ));
+
+        JLabel dateLabel = new JLabel("Date (YYYY-MM-DD):");
         JTextField dateField = new JTextField(LocalDate.now().toString(), 12);
         JButton setDateBtn = new JButton("Set Date");
         setDateBtn.setFocusable(false);
 
-        controls.add(dateLabel);
-        controls.add(dateField);
-        controls.add(setDateBtn);
-        panel.add(controls, BorderLayout.NORTH);
+        dateSetterPanel.add(dateLabel);
+        dateSetterPanel.add(dateField);
+        dateSetterPanel.add(setDateBtn);
 
+        /* Add the date setter panel to the controls section.
+           Future control panels can be added here the same way. */
+        controlsSection.add(dateSetterPanel);
+        panel.add(controlsSection, BorderLayout.NORTH);
+
+        /* ---- Bottom section: the output log ---- */
         devLog = new JTextArea();
         devLog.setEditable(false);
         devLog.setFont(new Font("Monospaced", Font.PLAIN, 12));
         devLog.setText("Dev Console ready.\nCurrent date: " + fakeTodayRef[0] + "\n");
 
-        /* Same padding as the other tabs for visual consistency. */
         JPanel logWrapper = new JPanel(new BorderLayout());
-        logWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        logWrapper.setBorder(BorderFactory.createEmptyBorder(4, 12, 8, 12));
         logWrapper.add(new JScrollPane(devLog), BorderLayout.CENTER);
         panel.add(logWrapper, BorderLayout.CENTER);
 
