@@ -18,7 +18,14 @@ import logic.TaskSorter;
    New control panels can be added to the top section as needed. */
 public class DevConsolePanel {
 
-    static JTextArea devLog;
+    /* Public so TaskButtons can write to the log from button actions. */
+    public static JTextArea devLog;
+
+    /* Clears the log and sets new content.
+       Called every time an action happens so old output is replaced. */
+    public static void setLog(String content) {
+        if (devLog != null) devLog.setText(content);
+    }
 
     /* Builds the dev console: a top section for controls arranged in
        labeled panels, and a scrollable log area at the bottom. */
@@ -46,8 +53,6 @@ public class DevConsolePanel {
         dateSetterPanel.add(dateField);
         dateSetterPanel.add(setDateBtn);
 
-        /* Add the date setter panel to the controls section.
-           Future control panels can be added here the same way. */
         controlsSection.add(dateSetterPanel);
         panel.add(controlsSection, BorderLayout.NORTH);
 
@@ -62,28 +67,33 @@ public class DevConsolePanel {
         logWrapper.add(new JScrollPane(devLog), BorderLayout.CENTER);
         panel.add(logWrapper, BorderLayout.CENTER);
 
-        /* When Set Date is clicked: update the shared fake-today reference,
-           re-run the missed-task check, log which tasks changed, then
-           refresh the Tasks table and Calendar to reflect the new date. */
+        /* When Set Date is clicked: update the fake date, run the scheduler,
+           and replace the log with fresh output. */
         setDateBtn.addActionListener(e -> {
             try {
                 fakeTodayRef[0] = LocalDate.parse(dateField.getText().trim());
-                devLog.append("Fake date set to: " + fakeTodayRef[0] + "\n");
-                devLog.append("Running scheduler...\n");
 
                 ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
-                for (Task t : newlyMissed) {
-                    devLog.append("  CHANGED: " + t.title + " -> " + t.status + "\n");
-                }
-
                 TaskSorter.sort(tm.tasks);
                 TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
                 CalendarPanel.render(tm.tasks);
-                devLog.append("Done.\n");
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+                sb.append("Scheduler ran.\n");
+                if (newlyMissed.isEmpty()) {
+                    sb.append("No changes.\n");
+                } else {
+                    for (Task t : newlyMissed) {
+                        sb.append("CHANGED: ").append(t.title).append(" -> MISSED\n");
+                    }
+                }
+                sb.append("Done.\n");
+                setLog(sb.toString());
 
                 TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
             } catch (Exception ex) {
-                devLog.append("Invalid date format. Use YYYY-MM-DD.\n");
+                setLog("Invalid date format. Use YYYY-MM-DD.\n");
             }
         });
 

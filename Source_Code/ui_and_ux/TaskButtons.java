@@ -61,6 +61,17 @@ public class TaskButtons {
             TaskSorter.sort(tm.tasks);
             SubjectFilter.refreshSubjectFilterOptions(tm.tasks, TasksPanel.subjectFilterBox);
             TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+            sb.append("LMS Synced!\n");
+            sb.append("Total tasks: ").append(tm.tasks.size()).append("\n");
+            for (Task t : newlyMissed) {
+                sb.append("CHANGED: ").append(t.title).append(" -> MISSED\n");
+            }
+            sb.append("Done.\n");
+            DevConsolePanel.setLog(sb.toString());
+
             JOptionPane.showMessageDialog(frame, "LMS Synced!");
             TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
         });
@@ -74,6 +85,13 @@ public class TaskButtons {
             TaskSorter.sort(tm.tasks);
             SubjectFilter.refreshSubjectFilterOptions(tm.tasks, TasksPanel.subjectFilterBox);
             TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+            sb.append("ADDED: ").append(t.title).append("\n");
+            sb.append("Total tasks: ").append(tm.tasks.size()).append("\n");
+            sb.append("Done.\n");
+            DevConsolePanel.setLog(sb.toString());
         });
 
         /* Delete Task: remove every selected row, matched by
@@ -99,6 +117,15 @@ public class TaskButtons {
             tm.tasks.removeAll(toDelete);
             SubjectFilter.refreshSubjectFilterOptions(tm.tasks, TasksPanel.subjectFilterBox);
             TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+            for (Task t : toDelete) {
+                sb.append("REMOVED: ").append(t.title).append("\n");
+            }
+            sb.append("Total tasks: ").append(tm.tasks.size()).append("\n");
+            sb.append("Done.\n");
+            DevConsolePanel.setLog(sb.toString());
         });
 
         /* Change Status: find the selected task by title+subject+date,
@@ -129,12 +156,19 @@ public class TaskButtons {
             if (confirmed) {
                 ArrayList<Task> newlyMissed = Scheduler.checkAndMarkMissed(tm.tasks, fakeTodayRef[0]);
                 TaskSorter.sort(tm.tasks);
-                /* Clear selection before refresh to prevent stale row
-                   index pointing to the wrong task after re-sort. */
                 table.clearSelection();
                 TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
 
-                /* Show a popup only if the status actually changed. */
+                StringBuilder sb = new StringBuilder();
+                sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+                sb.append("CHANGED: ").append(sel.title).append(" -> ").append(sel.status).append("\n");
+                for (Task t : newlyMissed) {
+                    if (t != sel) sb.append("CHANGED: ").append(t.title).append(" -> MISSED\n");
+                }
+                sb.append("Total tasks: ").append(tm.tasks.size()).append("\n");
+                sb.append("Done.\n");
+                DevConsolePanel.setLog(sb.toString());
+
                 if (statusBefore != Status.COMPLETE && sel.status == Status.COMPLETE) {
                     TaskDialogs.showCompletedPopup(frame, sel);
                 } else if (statusBefore != Status.MISSED && sel.status == Status.MISSED) {
@@ -184,6 +218,17 @@ public class TaskButtons {
                 SubjectFilter.refreshSubjectFilterOptions(tm.tasks, TasksPanel.subjectFilterBox);
                 TasksPanel.refresh(tm, tableModel, fakeTodayRef[0]);
                 CalendarPanel.render(tm.tasks);
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("Date: ").append(fakeTodayRef[0]).append("\n");
+                sb.append("Loaded: ").append(file.getName()).append("\n");
+                sb.append("Total tasks: ").append(tm.tasks.size()).append("\n");
+                for (Task t : newlyMissed) {
+                    sb.append("CHANGED: ").append(t.title).append(" -> MISSED\n");
+                }
+                sb.append("Done.\n");
+                DevConsolePanel.setLog(sb.toString());
+
                 JOptionPane.showMessageDialog(frame, "Loaded!");
                 TaskDialogs.showNewlyMissedPopup(frame, newlyMissed);
             } catch (Exception ex) {

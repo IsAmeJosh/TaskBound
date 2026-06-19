@@ -2,6 +2,7 @@ package ui_and_ux;
 
 import core.Status;
 import core.Task;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import javax.swing.*;
 import logic.TimeConverter;
@@ -33,11 +34,37 @@ public class TaskDialogs {
         return minutes;
     }
 
-    /* Builds the list of day numbers 01 through 31 for the day dropdown. */
-    private static String[] buildDays() {
-        String[] days = new String[31];
-        for (int i = 0; i < 31; i++) days[i] = String.format("%02d", i + 1);
+    /* Builds the list of day numbers for the given month and year.
+       Accounts for months with fewer than 31 days and leap years
+       for February. */
+    private static String[] buildDays(int year, int month) {
+        int daysInMonth = YearMonth.of(year, month).lengthOfMonth();
+        String[] days = new String[daysInMonth];
+        for (int i = 0; i < daysInMonth; i++) days[i] = String.format("%02d", i + 1);
         return days;
+    }
+
+    /* Updates the day dropdown to only show valid days for the
+       currently selected month and year. Tries to preserve the
+       previously selected day if it is still valid. */
+    private static void updateDays(JComboBox<String> yearBox, JComboBox<String> monthBox, JComboBox<String> dayBox) {
+        String prevDay = (String) dayBox.getSelectedItem();
+        int year = Integer.parseInt((String) yearBox.getSelectedItem());
+        int month = monthNameToIndex((String) monthBox.getSelectedItem()) + 1;
+        String[] days = buildDays(year, month);
+        dayBox.removeAllItems();
+        for (String d : days) dayBox.addItem(d);
+        /* Restore the previous day selection if it is still valid. */
+        if (prevDay != null) {
+            for (int i = 0; i < dayBox.getItemCount(); i++) {
+                if (dayBox.getItemAt(i).equals(prevDay)) {
+                    dayBox.setSelectedItem(prevDay);
+                    return;
+                }
+            }
+        }
+        /* If the previous day is no longer valid, default to the last day. */
+        dayBox.setSelectedIndex(dayBox.getItemCount() - 1);
     }
 
     /* Converts a month name like "June" to its two-digit number "06"
@@ -49,6 +76,14 @@ public class TaskDialogs {
             }
         }
         return "01";
+    }
+
+    /* Returns the zero-based index of a month name in the MONTHS array. */
+    private static int monthNameToIndex(String monthName) {
+        for (int i = 0; i < MONTHS.length; i++) {
+            if (MONTHS[i].equals(monthName)) return i;
+        }
+        return 0;
     }
 
     /* Converts a two-digit month number like "06" back to its name
@@ -72,14 +107,19 @@ public class TaskDialogs {
 
         JComboBox<String> yearBox = new JComboBox<>(YEARS);
         JComboBox<String> monthBox = new JComboBox<>(MONTHS);
-        JComboBox<String> dayBox = new JComboBox<>(buildDays());
+
+        /* Default the month and year pickers to the current date. */
+        int currentYear = java.time.LocalDate.now().getYear();
+        int currentMonth = java.time.LocalDate.now().getMonthValue();
+        yearBox.setSelectedItem(String.valueOf(currentYear));
+        monthBox.setSelectedIndex(currentMonth - 1);
+
+        /* Build the day dropdown based on the current month and year. */
+        JComboBox<String> dayBox = new JComboBox<>(buildDays(currentYear, currentMonth));
+
         JComboBox<String> hourBox = new JComboBox<>(HOURS_12);
         JComboBox<String> minuteBox = new JComboBox<>(buildMinutes());
         JComboBox<String> ampmBox = new JComboBox<>(AMPM);
-
-        /* Default the month and year pickers to the current date. */
-        monthBox.setSelectedIndex(java.time.LocalDate.now().getMonthValue() - 1);
-        yearBox.setSelectedItem(String.valueOf(java.time.LocalDate.now().getYear()));
 
         yearBox.setFocusable(false);
         monthBox.setFocusable(false);
@@ -87,6 +127,10 @@ public class TaskDialogs {
         hourBox.setFocusable(false);
         minuteBox.setFocusable(false);
         ampmBox.setFocusable(false);
+
+        /* Update the day dropdown whenever the month or year changes. */
+        monthBox.addActionListener(e -> updateDays(yearBox, monthBox, dayBox));
+        yearBox.addActionListener(e -> updateDays(yearBox, monthBox, dayBox));
 
         JPanel datePanel = new JPanel();
         datePanel.add(yearBox); datePanel.add(new JLabel("-"));
@@ -139,20 +183,39 @@ public class TaskDialogs {
 
         JComboBox<String> yearBox = new JComboBox<>(YEARS);
         JComboBox<String> monthBox = new JComboBox<>(MONTHS);
-        JComboBox<String> dayBox = new JComboBox<>(buildDays());
         yearBox.setFocusable(false);
         monthBox.setFocusable(false);
-        dayBox.setFocusable(false);
 
-        /* Pre-fill the date pickers with the task's existing due date. */
+        /* Pre-fill year and month from the task's existing due date. */
+        int preYear = java.time.LocalDate.now().getYear();
+        int preMonth = java.time.LocalDate.now().getMonthValue();
         if (sel.dueDate != null && sel.dueDate.contains("-")) {
             String[] p = sel.dueDate.split("-");
             if (p.length == 3) {
+                try {
+                    preYear = Integer.parseInt(p[0]);
+                    preMonth = Integer.parseInt(p[1]);
+                } catch (Exception ex) {
+                    /* Use defaults if parsing fails. */
+                }
                 yearBox.setSelectedItem(p[0]);
                 monthBox.setSelectedItem(monthNumberToName(p[1]));
-                dayBox.setSelectedItem(p[2]);
             }
         }
+
+        /* Build the day dropdown based on the pre-filled month and year. */
+        JComboBox<String> dayBox = new JComboBox<>(buildDays(preYear, preMonth));
+        dayBox.setFocusable(false);
+
+        /* Pre-fill the day from the task's existing due date. */
+        if (sel.dueDate != null && sel.dueDate.contains("-")) {
+            String[] p = sel.dueDate.split("-");
+            if (p.length == 3) dayBox.setSelectedItem(p[2]);
+        }
+
+        /* Update the day dropdown whenever the month or year changes. */
+        monthBox.addActionListener(e -> updateDays(yearBox, monthBox, dayBox));
+        yearBox.addActionListener(e -> updateDays(yearBox, monthBox, dayBox));
 
         JComboBox<String> hourBox = new JComboBox<>(HOURS_12);
         JComboBox<String> minuteBox = new JComboBox<>(buildMinutes());
